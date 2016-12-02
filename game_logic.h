@@ -19,6 +19,21 @@ my walls should be numbered as
 2)south
 3)west
  4) north
+
+ ///							wall3 ( player3)
+ //     ------------------------------------------------------------
+ //     --														---
+ //     --														---
+ //     --														---
+ //wall4--														---  wall2(player2)
+ // no  --														---
+ //play --														---
+ // -er --														---
+ //     --														---
+ //     --														---
+ //     ------------------------------------------------------------
+ //							wall1(player1)
+
 */
 struct Player_Status
 {
@@ -35,7 +50,7 @@ struct Ball
 	float radius; 
 	int ball_number; 
 	};
-enum Object_Type { WALL, BALL, MALLET };
+enum Object_Type { WALL, BALL, MALLET, RANDOM_BALL_GENERATOR};
 struct Collided_Objects
 {
 	int ball_number; 
@@ -47,15 +62,27 @@ class Game_Logic
 	bool game_started;
 	int number_of_players;
     int max_number_of_balls;
-	int last_ball_number; 
+	int last_ball_number;
+	glm::vec2 random_ball_gen_pos;
+	std::vector<glm::vec2> goal_boundary;
 	std::vector <Player_Status> player_status; //player status, player live ,player number, player name, wall no
 	std::vector<Ball>balls; //vector that contains all the balls currently active with their positions ,velocities 
-	std::vector <glm::vec2>mallet_pos; //the positions of the mallets received from the kinect 
+	std::vector<Ball>waiting_balls;
+	std::vector <glm::vec2>mallets_pos; //the positions of the mallets received from the kinect 
 	glm::vec2 player_area; // where the actual game will be conducted 
-	glm::vec2 random_ball_gen_pos;
+	float ball_speed;
 	void create_a_ball();
-	bool check_ball_collision(int i, int j);
+	bool check_ball_collision(Ball b1, Ball b2);
+	void	resolve_ball_ball_collision(Collided_Objects);
+	void resolve_ball_mallet_collision(Collided_Objects);
+	void resolve_ball_wall_collision (Collided_Objects);
+	void resolve_ball_generator_collision(Collided_Objects);
+	int find_ball_index(int ball_number);
+	bool ball_in_goal(Collided_Objects );
+	int uniform_ball_radius;
+	float  random_ball_generator_radius;
 	public:
+
 		Game_Logic();
 		void init();
 		void update();
@@ -65,4 +92,8 @@ class Game_Logic
 		void set_mallet(std::vector<glm::vec2> mallets);
 		void set_random_ball_genereator(glm::vec2);
 		void display_values();
+		std::vector<Ball> get_balls();
+		std::vector<glm::vec2> get_goal_boundary();
+		glm::vec2  get_random_ball_genreator();
+		bool get_game_started();
 	};
