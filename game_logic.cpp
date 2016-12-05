@@ -28,14 +28,16 @@ Game_Logic::Game_Logic()
 	srand(time(NULL));
 	game_started = false;
 	uniform_ball_radius = 100;
+	unifrom_mallet_radius = 100; 
 	number_of_players = 3;
+	number_of_active_players = 3;
 	player_area = glm::vec2(1400, 1050);
 	for (int i = 0; i <number_of_players; i++)
 
 	{
 		Player_Status P;
 		P.is_alive = true;
-		P.lives = 10;
+		P.lives = 5;
 		P.player_no = i + 1;
 		P.wall = i + 1;   
 		player_status.push_back(P);
@@ -44,9 +46,12 @@ Game_Logic::Game_Logic()
 	last_ball_number = 0;
 	random_ball_generator_radius = uniform_ball_radius;
 	set_random_ball_genereator(glm::vec2(700,525));
-	goal_boundary.push_back (glm::vec2(550, 850));
-	goal_boundary.push_back(glm::vec2(375, 675));
-	goal_boundary.push_back(glm::vec2(550, 850));
+	goal_boundary.push_back (glm::vec2(400, 1000));
+	goal_boundary.push_back(glm::vec2(255, 825));
+	goal_boundary.push_back(glm::vec2(400, 1000));
+	mallets_pos.push_back ( glm::vec2((goal_boundary[0].x + goal_boundary[0].y)/2.0,0.0));
+	mallets_pos.push_back( glm::vec2(player_area.x,(goal_boundary[1].x + goal_boundary[1].y) / 2.0));
+	mallets_pos.push_back( glm::vec2( ((goal_boundary[2].x + goal_boundary[2].y) / 2.0),player_area.y));
 	ball_speed = 30.0;
 }
 //game logic start ------------------------------------------------------------------------
@@ -55,15 +60,18 @@ void Game_Logic::start()
 	game_started = true;
 	init();
 }
+
 //game logic init ------------------------------------------------------------------------
 void  Game_Logic::init()
-{
+{	
 	create_a_ball();
 }
 std::vector<glm::vec2> Game_Logic::get_goal_boundary()
 {
 	return goal_boundary;
 }
+std::vector <glm::vec2> Game_Logic::get_mallets_pos() { return mallets_pos; }
+std::vector <Player_Status> Game_Logic::get_player_status() { return player_status; }
 //game logic check collision------------------------------------------------------------
 bool Game_Logic::check_ball_collision(Ball b1, Ball b2)
 {
@@ -88,6 +96,7 @@ void Game_Logic::update()
 		cout << "ball number " <<balls[i].ball_number<< " with pos " << balls[i].pos.x << "  " << balls[i].pos.y << "   and velocity   " << balls[i].velocity.x << "  " << balls[i].velocity.y << endl;
 		
 	}
+
 	std::vector<Collided_Objects>  collided_obj = check_collision();
 	resolve_collision(collided_obj);
 	if (balls.size() < max_number_of_balls)
@@ -135,20 +144,18 @@ std::vector<Collided_Objects> Game_Logic::check_collision()
 			co.object_number = 1;
 			collided_objects.push_back(co);
 		}
+
 	}
 	//testing collision with the mallet 
 	for (int i = 0; i < balls.size(); i++)
 	{
 		for (int j = 0; j < mallets_pos.size(); j++)
 		{
-			glm::vec2 difference = balls[i].pos - mallets_pos[j];
-			float distance = glm::dot(difference, difference);
-			float radius_sum = balls[i].radius + balls[i].radius;  /// I'm supposing the mallet has the same radius like the ball 
-			float radius_square = radius_sum*radius_sum;
-			if (distance <= radius_square)
+			Ball mall; mall.pos = mallets_pos[j]; mall.radius = unifrom_mallet_radius;
+			if (check_ball_collision(balls[i], mall))
 			{
 				co.ball_number = balls[i].ball_number; co.object_type = MALLET;
-				co.object_number = j+1;
+				co.object_number = j;
 				collided_objects.push_back(co);
 			}
 					
@@ -284,35 +291,46 @@ void Game_Logic::resolve_ball_ball_collision(Collided_Objects ball_collision)
 { 
 	int z = find_ball_index(ball_collision.ball_number);
 	int w = find_ball_index(ball_collision.object_number);
-	float m1, m2, x1, x2, kissing_test1,kissing_test2;
+	float m1, m2, x1, x2, kissing_test1,kissing_test2, kissing_test3;
 	glm::vec2 x = balls[z].pos - balls[w].pos;
 	x=glm::normalize(x);
 	kissing_test1 = glm::dot(balls[w].velocity, x);
 	glm::vec2  v1= balls[z].velocity;
-	 x1 = glm::dot(x,v1);
-	 glm::vec2 v1x = x * x1;
+	x1 = glm::dot(x,v1);
+	glm::vec2 v1x = x * x1;
 	glm::vec2 v1y = v1 - v1x;
+	kissing_test2 = glm::dot(balls[z].velocity, x);
 	x = x*glm::vec2(-1,-1);
-	kissing_test2= glm::dot(balls[z].velocity, x);
+	kissing_test3 = glm::dot(balls[z].velocity, x);
 	glm::vec2 v2 = balls[w].velocity;
 	x2 = glm::dot(x,v2);
 	glm::vec2 v2x = x * x2;
 	glm:: vec2 v2y = v2 - v2x;
-	if (!(kissing_test1 <= 0 && kissing_test2 <= 0))
+	if (x1 + x2 < 0)
 	{
 		balls[z].velocity = glm::vec2(v2x + v1y);
 		balls[w].velocity = glm::vec2(v1x + v2y);
 	}
-
-	
-
 	//https://github.com/Studiofreya/code-samples/blob/master/opengl/collisiondetect/collisiondetect.cpp		
 	
 	}
 
 void Game_Logic::resolve_ball_mallet_collision(Collided_Objects mallet_collision)
 {
+
+	int z = find_ball_index(mallet_collision.ball_number);
+	if (z != -1)
+	{
+		glm::vec2 N = balls[z].pos - mallets_pos[mallet_collision.object_number];
+		N = glm::normalize(N);
+		glm::vec2 d = balls[z].velocity;
+		glm::vec2 T = glm::dot(d, N)*N;
+		if ( glm::dot(d,N)<=0)
+		balls[z].velocity = d - T - T;
+	}
 }
+
+
 int Game_Logic::find_ball_index(int ball_number) {
 
 	for (int i = 0; i < balls.size(); i++)
@@ -329,17 +347,17 @@ bool Game_Logic::ball_in_goal(Collided_Objects collided_obj)
 	{
 		if (collided_obj.object_number == 1)
 		{
-			if ((balls[z].pos.x >= goal_boundary[0].x) && (balls[z].pos.x <= goal_boundary[0].y))
+			if ((balls[z].pos.x >= goal_boundary[0].x) && (balls[z].pos.x <= goal_boundary[0].y) && (player_status[0].is_alive))
 				return true;
 		}
 		else if (collided_obj.object_number == 2)
 		{
-			if ((balls[z].pos.y >= goal_boundary[1].x) && (balls[z].pos.y <= goal_boundary[1].y))
+			if ((balls[z].pos.y >= goal_boundary[1].x) && (balls[z].pos.y <= goal_boundary[1].y)&&(player_status[1].is_alive))
 				return true;
 		}
 		else if (collided_obj.object_number == 3)
 		{
-			if ((balls[z].pos.x >= goal_boundary[2].x) && (balls[z].pos.x <= goal_boundary[2].y))
+			if ((balls[z].pos.x >= goal_boundary[2].x) && (balls[z].pos.x <= goal_boundary[2].y)&&(player_status[2].is_alive))
 				return true;
 
 		}
@@ -364,11 +382,23 @@ void Game_Logic::resolve_ball_wall_collision(Collided_Objects wall_collision)
 			player_status[wall_collision.object_number-1].lives--;
 			balls.erase(balls.begin() + z);
 			if (player_status[wall_collision.object_number - 1].lives == 0)
-				player_status[wall_collision.object_number - 1].is_alive = false;
-			if (!player_status[0].is_alive && !player_status[0].is_alive && !player_status[0].is_alive)
+			{
+				player_status[wall_collision.object_number - 1].is_alive = false; number_of_active_players--;
+			}
+			if (number_of_active_players==1)
 			{
 				game_started = false;
-				exit(0);
+				cout << "game over guys";
+				cout << "the winner  ";
+				for (int i = 0; i < number_of_players; i++)
+				{
+					if (player_status[i].is_alive)
+					{
+						cout << "player number " << i + 1 << endl;
+					}
+
+				}
+			
 			}
 		}
 		else if ((player_status[wall_collision.object_number - 1].is_alive) && (!(ball_in_goal(wall_collision)))
@@ -393,5 +423,6 @@ void Game_Logic::resolve_ball_generator_collision(Collided_Objects random_ball_c
 	N = glm::normalize(N);
 	glm::vec2 d = balls[z].velocity;
 	glm::vec2 T = glm::dot(d, N)*N;
+	if (glm::dot(d, N) <= 0)
 	balls[z].velocity = d - T - T;
 	}
